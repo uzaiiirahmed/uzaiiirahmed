@@ -1,5 +1,5 @@
 <h1 align="center">Hi 👋, I'm Uzair Ahmed</h1>
-<h3 align="center">Playing a lot of videogames and sometimes I make them as well.</h3>
+<h3 align="center">👾 Writing code to make pixels come alive.</h3>
 
 <h3 align="left">Connect with me:</h3>
 <p align="left">
