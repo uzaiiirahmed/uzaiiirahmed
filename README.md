@@ -6,7 +6,7 @@
 
 <div align="center">
 
- ![snake gif](https://github.com/uzaiiirahmed/uzaiiirahmed/blob/output/github-snake-dark.svg)
+ <img src="https://raw.githubusercontent.com/uzaiiirahmed/uzaiiirahmed/output/commit-snake.svg" alt="Snake eating my contribution graph" width="100%" />
 
  </div>
 
