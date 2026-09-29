@@ -7,6 +7,8 @@ Icons in icons/ are from Simple Icons (CC0) and Devicon (MIT).
 import os
 import re
 
+from snake import DOTS, theme_swap
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "..", "assets")
 
@@ -90,12 +92,12 @@ svg{{font-size:{FS}px}}text{{font-family:{MONO};white-space:pre}}
 {''.join(self.css)}
 </style>
 <defs><filter id="glow" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="2" result="b"/>
-<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>{''.join(self.defs)}</defs>
-<rect width="{W}" height="{H}" rx="12" fill="{BG}"/>
+<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>{''.join(self.defs)}{theme_swap()}</defs>
+<g filter="url(#theme)"><rect width="{W}" height="{H}" rx="12" fill="{BG}"/>
 <rect width="{W}" height="26" rx="12" fill="{BAR}"/><rect y="14" width="{W}" height="12" fill="{BAR}"/>
-<circle cx="18" cy="13" r="5" fill="#ff5f57"/><circle cx="34" cy="13" r="5" fill="#febc2e"/><circle cx="50" cy="13" r="5" fill="#28c840"/>
 <text x="{W / 2}" y="17" font-size="11" fill="#8a5f5f" text-anchor="middle">{self.title}</text>
-<g filter="url(#glow)">{''.join(self.body)}</g>
+<g filter="url(#glow)">{''.join(self.body)}</g></g>
+{DOTS}
 </svg>"""
 
 
@@ -131,12 +133,13 @@ def button(name, label):
     w, h = 168, 38
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}">
 <style>text{{font-family:{MONO};font-size:13px}}</style>
+<defs>{theme_swap()}</defs><g filter="url(#theme)">
 <rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="6" fill="{BG}" stroke="{MID}"/>
 <text x="12" y="24" fill="{DIM}">&gt;</text>
 {icon(name, 28, 11, 16, HI)}
 <text x="52" y="24" fill="{HI}">{label}</text>
 <text x="{w - 14}" y="24" fill="{MID}" text-anchor="end">↗</text>
-</svg>"""
+</g></svg>"""
 
 
 def main():

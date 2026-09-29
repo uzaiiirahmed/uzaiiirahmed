@@ -14,9 +14,31 @@ from collections import deque
 
 CELL, GAP = 11, 4
 PITCH = CELL + GAP
-STEP = 0.1   # seconds per cell moved
+LOOP = 32.0  # seconds per round; speed adapts so every round takes this long
 PRE = 1.2    # pause before the snake starts
 HOLD = 3.5   # pause after the last commit is eaten
+FADE = 1.4   # red <-> green crossfade, starts right after the last commit is eaten
+
+DOTS = ('<circle cx="18" cy="13" r="5" fill="#ff5f57"/><circle cx="34" cy="13" r="5" fill="#febc2e"/>'
+        '<circle cx="50" cy="13" r="5" fill="#28c840"/>')
+
+
+def theme_swap():
+    """SVG filter that alternates the palette red / green every round.
+
+    Swapping the R and G channels maps each red shade onto its green twin;
+    the animation spans two rounds so every image on the page shares the
+    same schedule (they all loop on LOOP).
+    """
+    ident = "1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 1 0"
+    swap = "0 1 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 1 0"
+    at = LOOP - HOLD + 0.3
+    k = [0, at, at + FADE, LOOP + at, LOOP + at + FADE, 2 * LOOP]
+    key_times = ";".join(f"{t / (2 * LOOP):.4f}" for t in k)
+    return (f'<filter id="theme" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="{ident}">'
+            f'<animate attributeName="values" dur="{2 * LOOP}s" repeatCount="indefinite" calcMode="spline" '
+            f'keyTimes="{key_times}" keySplines="0 0 1 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1;0 0 1 1" '
+            f'values="{ident};{ident};{swap};{swap};{ident};{ident}"/></feColorMatrix></filter>')
 
 QUERY = """query($login:String!){user(login:$login){contributionsCollection{
 contributionCalendar{totalContributions weeks{contributionDays{
@@ -118,7 +140,8 @@ def render(user, width, cells, total, theme_name):
     th = THEMES[theme_name]
     path, eats = plan_path(width, cells)
     n = len(path)
-    T = PRE + (n - 1) * STEP + HOLD
+    T = LOOP
+    STEP = (LOOP - PRE - HOLD) / (n - 1)
     t_of = lambda step: (PRE + step * STEP) / T * 100
     pct = lambda step: f"{t_of(step):.3f}%"
     end = t_of(n - 1)
@@ -239,6 +262,8 @@ text{{font-family:{th['font']}}}
 {cell_css}{''.join(css)}"""
 
     glow = ' filter="url(#glow)"' if th["glow"] else ""
+    swap = ' filter="url(#theme)"' if theme_name == "terminal" else ""
+    dots = DOTS if theme_name == "terminal" else ""
     bg = f'<rect width="{W}" height="{H}" rx="12" fill="{th["bg"]}"/>' if th["bg"] else ""
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
 <title>{user}'s contribution snake</title>
@@ -247,13 +272,14 @@ text{{font-family:{th['font']}}}
 <filter id="glow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/>
 <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 <clipPath id="board"><rect x="{pl - 6}" y="{pt - 6}" width="{gw + 12}" height="{gh + 12}"/></clipPath>
-{chrome_defs}
+{chrome_defs}{theme_swap()}
 </defs>
-{bg}{back}
+<g{swap}>{bg}{back}
 <g>{''.join(cell_svg)}</g>
 <g{glow}>{''.join(pellets)}</g>
 <g id="snake" clip-path="url(#board)"><g{glow}>{''.join(body)}{head_g}</g></g>
 {front}
+</g>{dots}
 </svg>"""
 
 
