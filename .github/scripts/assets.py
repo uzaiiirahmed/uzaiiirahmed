@@ -14,7 +14,7 @@ USER = "uzaiiirahmed"
 PROMPT = f"{USER}@github:~$"
 W = 851  # matches the snake board width
 MONO = "ui-monospace,SFMono-Regular,'Cascadia Mono',Menlo,Consolas,monospace"
-BG, BAR, DIM, MID, HI = "#050805", "#101810", "#1a7a33", "#27b24a", "#3dff6e"
+BG, BAR, DIM, MID, HI = "#0a0505", "#1a0c0c", "#9e1c1c", "#e03434", "#ff5c5c"
 FS = 13
 CW = FS * 0.6          # forced glyph advance (textLength keeps it exact)
 LINE = 22
@@ -94,7 +94,7 @@ svg{{font-size:{FS}px}}text{{font-family:{MONO};white-space:pre}}
 <rect width="{W}" height="{H}" rx="12" fill="{BG}"/>
 <rect width="{W}" height="26" rx="12" fill="{BAR}"/><rect y="14" width="{W}" height="12" fill="{BAR}"/>
 <circle cx="18" cy="13" r="5" fill="#ff5f57"/><circle cx="34" cy="13" r="5" fill="#febc2e"/><circle cx="50" cy="13" r="5" fill="#28c840"/>
-<text x="{W / 2}" y="17" font-size="11" fill="#5f7a60" text-anchor="middle">{self.title}</text>
+<text x="{W / 2}" y="17" font-size="11" fill="#8a5f5f" text-anchor="middle">{self.title}</text>
 <g filter="url(#glow)">{''.join(self.body)}</g>
 </svg>"""
 

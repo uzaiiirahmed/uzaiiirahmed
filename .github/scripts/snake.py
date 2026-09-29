@@ -57,11 +57,11 @@ THEMES = {
         highlight="#ffffff", glow=True, font=SANS,
     ),
     "terminal": dict(
-        pad=(30, 62, 30, 44), bg="#050805", radius=1,
-        cells=["#0d1a0f", "#124d22", "#1a7a33", "#27b24a", "#3dff6e"],
+        pad=(30, 62, 30, 44), bg="#0a0505", radius=1,
+        cells=["#1f0d0d", "#5c1414", "#9e1c1c", "#e03434", "#ff5c5c"],
         outline=None,
-        snake=dict(length=14, w=(5, 1), colors=("#3dff6e", "#0f4a1e"), steps=6),
-        head=dict(r=0, cursor=True, fill="#3dff6e"),
+        snake=dict(length=14, w=(5, 1), colors=("#ff5c5c", "#4a0f0f"), steps=6),
+        head=dict(r=0, cursor=True, fill="#ff5c5c"),
         highlight=None, glow=True, font=MONO,
     ),
 }
@@ -350,26 +350,26 @@ def chrome_glass(ctx):
 
 def chrome_terminal(ctx):
     W, H, pl, pt, gw, gh = (ctx[k] for k in ("W", "H", "pl", "pt", "gw", "gh"))
-    clip, score = odometer(ctx, 0, 0, 12, "#3dff6e")
+    clip, score = odometer(ctx, 0, 0, 12, "#ff5c5c")
     u = ctx["user"]
     ctx["css"].append("@keyframes cur{50%{opacity:0}}.cur{animation:cur 1s steps(1,end) infinite}")
     prompt = f"{u}@github:~$ ./snake --eat commits"
-    back = (f'<rect x="0" y="0" width="{W}" height="26" rx="12" fill="#101810"/>'
-            f'<rect x="0" y="14" width="{W}" height="12" fill="#101810"/>'
+    back = (f'<rect x="0" y="0" width="{W}" height="26" rx="12" fill="#1a0c0c"/>'
+            f'<rect x="0" y="14" width="{W}" height="12" fill="#1a0c0c"/>'
             f'<circle cx="18" cy="13" r="5" fill="#ff5f57"/><circle cx="34" cy="13" r="5" fill="#febc2e"/>'
             f'<circle cx="50" cy="13" r="5" fill="#28c840"/>'
-            f'<text x="{W / 2}" y="17" font-size="11" fill="#5f7a60" text-anchor="middle">{u} — zsh</text>'
-            f'<text x="{pl - 10}" y="48" font-size="12" fill="#3dff6e" filter="url(#glow)">{prompt}</text>')
-    status = (f'<text x="{pl - 10}" y="{H - 16}" font-size="12" fill="#27b24a">[</text>'
+            f'<text x="{W / 2}" y="17" font-size="11" fill="#8a5f5f" text-anchor="middle">{u} — zsh</text>'
+            f'<text x="{pl - 10}" y="48" font-size="12" fill="#ff5c5c" filter="url(#glow)">{prompt}</text>')
+    status = (f'<text x="{pl - 10}" y="{H - 16}" font-size="12" fill="#e03434">[</text>'
               f'<g transform="translate({pl - 2},{H - 16})">{score}</g>'
-              f'<text x="{pl + 34}" y="{H - 16}" font-size="12" fill="#27b24a">/{ctx["total"]}] commits consumed</text>'
-              f'<text x="{W - pl + 10}" y="{H - 16}" font-size="12" fill="#1a7a33" text-anchor="end">'
+              f'<text x="{pl + 34}" y="{H - 16}" font-size="12" fill="#e03434">/{ctx["total"]}] commits consumed</text>'
+              f'<text x="{W - pl + 10}" y="{H - 16}" font-size="12" fill="#9e1c1c" text-anchor="end">'
               f'refresh: daily · 0 errors</text>')
     over = overlay(ctx, "over", (
-        f'<rect x="{W / 2 - 150}" y="{pt + gh / 2 - 18}" width="300" height="34" fill="#050805" stroke="#27b24a"/>'
-        f'<text x="{W / 2 - 138}" y="{pt + gh / 2 + 4}" font-size="12" fill="#3dff6e" filter="url(#glow)">'
+        f'<rect x="{W / 2 - 150}" y="{pt + gh / 2 - 18}" width="300" height="34" fill="#0a0505" stroke="#e03434"/>'
+        f'<text x="{W / 2 - 138}" y="{pt + gh / 2 + 4}" font-size="12" fill="#ff5c5c" filter="url(#glow)">'
         f'&gt; process exited (0). all fed.</text>'
-        f'<rect class="cur" x="{W / 2 + 108}" y="{pt + gh / 2 - 7}" width="7" height="13" fill="#3dff6e"/>'))
+        f'<rect class="cur" x="{W / 2 + 108}" y="{pt + gh / 2 - 7}" width="7" height="13" fill="#ff5c5c"/>'))
     return clip, back, status + over
 
 
