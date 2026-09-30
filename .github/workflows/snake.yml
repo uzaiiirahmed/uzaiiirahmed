@@ -24,6 +24,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build terminal profile (windows merge/split each round)
+        run: python .github/scripts/assets.py morph dist/commit-snake.svg dist/profile.svg
+
       - name: Deploy to Output Branch
         uses: peaceiris/actions-gh-pages@v4
         with:

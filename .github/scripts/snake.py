@@ -23,22 +23,30 @@ DOTS = ('<circle cx="18" cy="13" r="5" fill="#ff5f57"/><circle cx="34" cy="13" r
         '<circle cx="50" cy="13" r="5" fill="#28c840"/>')
 
 
-def theme_swap():
-    """SVG filter that alternates the palette red / green every round.
+def round_swap(attr, a, b):
+    """SMIL animation that flips `attr` between a and b after every round.
 
-    Swapping the R and G channels maps each red shade onto its green twin;
-    the animation spans two rounds so every image on the page shares the
-    same schedule (they all loop on LOOP).
+    It spans two rounds and starts at load, so every image on the page that
+    uses it switches at the same moment (they all loop on LOOP).
     """
-    ident = "1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 1 0"
-    swap = "0 1 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 1 0"
     at = LOOP - HOLD + 0.3
     k = [0, at, at + FADE, LOOP + at, LOOP + at + FADE, 2 * LOOP]
     key_times = ";".join(f"{t / (2 * LOOP):.4f}" for t in k)
-    return (f'<filter id="theme" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="{ident}">'
-            f'<animate attributeName="values" dur="{2 * LOOP}s" repeatCount="indefinite" calcMode="spline" '
+    return (f'<animate attributeName="{attr}" dur="{2 * LOOP}s" repeatCount="indefinite" calcMode="spline" '
             f'keyTimes="{key_times}" keySplines="0 0 1 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1;0 0 1 1" '
-            f'values="{ident};{ident};{swap};{swap};{ident};{ident}"/></feColorMatrix></filter>')
+            f'values="{a};{a};{b};{b};{a};{a}"/>')
+
+
+def theme_swap():
+    """SVG filter that alternates the palette red / green every round.
+
+    Swapping the R and G channels maps each red shade onto its green twin.
+    """
+    ident = "1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 1 0"
+    swap = "0 1 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 1 0"
+    return (f'<filter id="theme" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="{ident}">'
+            f'{round_swap("values", ident, swap)}</feColorMatrix></filter>')
+
 
 QUERY = """query($login:String!){user(login:$login){contributionsCollection{
 contributionCalendar{totalContributions weeks{contributionDays{
