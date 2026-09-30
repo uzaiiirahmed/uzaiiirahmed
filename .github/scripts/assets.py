@@ -7,10 +7,11 @@ All-in-one window (needs the day's snake):
 Icons in icons/ are from Simple Icons (CC0) and Devicon (MIT).
 """
 import os
+import random
 import re
 import sys
 
-from snake import DOTS, round_swap, theme_swap
+from snake import DOTS, palette_vars, round_swap
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "..", "assets")
@@ -43,10 +44,10 @@ def icon(name, x, y, size, fill):
 class Term:
     """Builds a terminal window whose lines type out one after another."""
 
-    def __init__(self, title, prefix=""):
+    def __init__(self, title, prefix="", start=0.4):
         self.p = prefix  # keeps class/id names unique when several windows share one SVG
         self.title, self.body, self.css, self.defs, self.raw = title, [], [], [], []
-        self.t, self.y, self.n = 0.4, 56, 0
+        self.t, self.y, self.n = start, 56, 0
 
     def _reveal(self, start, dur, steps):
         k = self.n
@@ -104,8 +105,8 @@ svg{{font-size:{FS}px}}text{{font-family:{MONO};white-space:pre}}
 {''.join(self.css)}
 </style>
 <defs><filter id="glow" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="2" result="b"/>
-<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>{''.join(self.defs)}{theme_swap()}</defs>
-<g filter="url(#theme)"><rect width="{W}" height="{H}" rx="12" fill="{BG}"/>
+<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>{''.join(self.defs)}</defs>
+<g><rect width="{W}" height="{H}" rx="12" fill="{BG}"/>
 <rect width="{W}" height="26" rx="12" fill="{BAR}"/><rect y="14" width="{W}" height="12" fill="{BAR}"/>
 <text x="{W / 2}" y="17" font-size="11" fill="#8a5f5f" text-anchor="middle">{self.title}</text>
 <g filter="url(#glow)">{''.join(self.body)}</g></g>
@@ -113,8 +114,8 @@ svg{{font-size:{FS}px}}text{{font-family:{MONO};white-space:pre}}
 </svg>"""
 
 
-def header(prefix=""):
-    t = Term(f"{USER} — zsh", prefix)
+def header(prefix="", start=0.4):
+    t = Term(f"{USER} — zsh", prefix, start)
     t.type("whoami")
     t.out(f'<text x="18" y="{t.y + 26}" font-size="44" font-weight="800" fill="{HI}" letter-spacing="3">'
           f'UZAIR AHMED</text>', height=LINE * 2 + 12, pause=0.5)
@@ -126,8 +127,8 @@ def header(prefix=""):
     return t.svg()
 
 
-def stack(prefix=""):
-    t = Term(f"{USER} — ~/stack", prefix)
+def stack(prefix="", start=0.4):
+    t = Term(f"{USER} — ~/stack", prefix, start)
     t.type("ls ~/stack")
     cols, size = len(STACK), 34
     slot = (W - 40) / cols
@@ -179,12 +180,46 @@ def _nest(svg, y):
     return f'<svg x="0" y="{y}" width="{w}" height="{h}" viewBox="0 0 {w} {h}">{inner}</svg>', h
 
 
+GLYPHS = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789:.=*+ZXE"
+
+
+def matrix_rain(W, H, seed=7, cw=14, trail=18):
+    """One-shot matrix rain intro. Each column is covered by a dark curtain
+    that retracts behind the falling drop, so the rain 'paints' the profile
+    into view. (Plain rects rather than masks: masks over the filtered
+    profile are too slow to redraw every frame.)
+
+    Returns (css, curtains, rain).
+    """
+    rnd = random.Random(seed)
+    css, curtain, rain = [], [], []
+    L = trail * cw
+    for i in range(int(W // cw) + 1):
+        x = i * cw
+        delay = rnd.uniform(0, 1.8)
+        fall = rnd.uniform(2.8, 4.2)       # time for the head to travel H + L
+        reach = fall * H / (H + L)         # time for the head to reach the bottom
+        css.append(f".m{i}{{animation:rain {fall:.2f}s linear {delay:.2f}s both}}"
+                   f".k{i}{{animation:paint {reach:.2f}s linear {delay:.2f}s both}}")
+        curtain.append(f'<rect class="k{i}" x="{x}" y="0" width="{cw + .5}" height="{H}"/>')
+        chars = "".join(
+            f'<tspan x="{x + cw / 2}" y="{-L + (k + 1) * cw}" fill-opacity="{(k + 1) / trail:.2f}"'
+            f'{f" fill={chr(34)}#ffd6d6{chr(34)}" if k == trail - 1 else ""}>{rnd.choice(GLYPHS)}</tspan>'
+            for k in range(trail))
+        rain.append(f'<text class="m{i}" text-anchor="middle">{chars}</text>')
+    css.append(f"@keyframes rain{{from{{transform:translateY(0)}}to{{transform:translateY({H + L}px)}}}}"
+               "@keyframes paint{from{transform:scaleY(1)}to{transform:scaleY(0)}}"
+               ".curtain rect{transform-box:fill-box;transform-origin:bottom}")
+    return "".join(css), "".join(curtain), "".join(rain)
+
+
 def morph(snake_svg):
     """Header, snake and stack as three windows that merge into one terminal
     and split apart again every round (in step with the red/green swap)."""
     gap = 10
     parts, y, seams = [], 0, []
-    for i, svg in enumerate([header("h"), snake_svg, stack("s")]):
+    # (the typing waits for the rain to finish painting)
+    for i, svg in enumerate([header("h", 5.2), snake_svg, stack("s", 5.5)]):
         nested, h = _nest(svg, y)
         parts.append(nested)
         if i:
@@ -197,11 +232,14 @@ def morph(snake_svg):
         f'<rect x="0" y="{sy - gap - 12}" width="{W}" height="{gap + 12 + 26}" fill="{BG}"/>'
         f'<line x1="20" x2="{W - 20}" y1="{sy - gap / 2 + 6}" y2="{sy - gap / 2 + 6}" stroke="{DIM}" '
         f'stroke-opacity=".45" stroke-dasharray="2 5"/>' for sy in seams)
+    css, curtain, rain = matrix_rain(W, H)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
 <title>{USER} — terminal profile</title>
-<defs>{theme_swap()}</defs>
+<style>{css}.rain text{{font-family:{MONO};font-size:13px}}</style>
+<defs><clipPath id="card"><rect width="{W}" height="{H}" rx="12"/></clipPath></defs>
 {''.join(parts)}
-<g opacity="0" filter="url(#theme)">{round_swap("opacity", "0", "1")}{fill}</g>
+<g opacity="0">{round_swap("opacity", "0", "1")}{fill}</g>
+<g clip-path="url(#card)"><g class="curtain" fill="{BG}">{curtain}</g><g class="rain" fill="{HI}">{rain}</g></g>
 </svg>"""
 
 
@@ -209,7 +247,7 @@ def button(name, label):
     w, h = 168, 38
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}">
 <style>text{{font-family:{MONO};font-size:13px}}</style>
-<defs>{theme_swap()}</defs><g filter="url(#theme)">
+<g>
 <rect x="1" y="1" width="{w - 2}" height="{h - 2}" rx="6" fill="{BG}" stroke="{MID}"/>
 <text x="12" y="24" fill="{DIM}">&gt;</text>
 {icon(name, 28, 11, 16, HI)}
@@ -223,7 +261,7 @@ def main():
         with open(sys.argv[2], encoding="utf-8") as f:
             svg = (combined if sys.argv[1] == "combined" else morph)(f.read())
         with open(sys.argv[3], "w", encoding="utf-8") as f:
-            f.write(svg)
+            f.write(palette_vars(svg))
         print("wrote " + sys.argv[3])
         return
     os.makedirs(OUT, exist_ok=True)
@@ -232,7 +270,7 @@ def main():
         files[f"btn-{name}.svg"] = button(name, label)
     for fn, content in files.items():
         with open(os.path.join(OUT, fn), "w", encoding="utf-8") as f:
-            f.write(content)
+            f.write(palette_vars(content))
         print("wrote assets/" + fn)
 
 

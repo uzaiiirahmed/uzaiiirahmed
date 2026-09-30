@@ -8,6 +8,7 @@ Themes: native, gameboy, glass, terminal
 """
 import json
 import os
+import re
 import sys
 import urllib.request
 from collections import deque
@@ -37,15 +38,59 @@ def round_swap(attr, a, b):
             f'values="{a};{a};{b};{b};{a};{a}"/>')
 
 
-def theme_swap():
-    """SVG filter that alternates the palette red / green every round.
+def palette_vars(svg):
+    """Make every palette colour alternate red / green each round.
 
-    Swapping the R and G channels maps each red shade onto its green twin.
+    Each colour becomes a registered CSS custom property animated on :root;
+    its green twin is the same colour with the R and G channels swapped.
+    Much cheaper than a colour-matrix filter over the whole image, which has
+    to be re-run every frame. Browsers without @property simply stay red.
+    Safe to run again on output that already went through it.
     """
-    ident = "1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 1 0"
-    swap = "0 1 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 1 0"
-    return (f'<filter id="theme" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="{ident}">'
-            f'{round_swap("values", ident, swap)}</feColorMatrix></filter>')
+    keep = set(re.findall(r"#[0-9a-f]{6}", DOTS))
+    svg = re.sub(r'<style id="palette">.*?</style>', "", svg, flags=re.S)
+
+    def var(h):
+        return f"var(--c{h[1:].lower()})"
+
+    def fix_tag(m):
+        tag = m.group(0)
+        decls = []
+
+        def grab(a):
+            h = a.group(2).lower()
+            if h in keep:
+                return a.group(0)
+            decls.append(f"{a.group(1)}:{var(h)}")
+            return ""
+        tag = re.sub(r'\s(fill|stroke)="(#[0-9a-fA-F]{6})"', grab, tag)
+        if decls:
+            if ' style="' in tag:
+                tag = tag.replace(' style="', f' style="{";".join(decls)};', 1)
+            else:
+                end = "/>" if tag.endswith("/>") else ">"
+                tag = tag[:-len(end)] + f' style="{";".join(decls)}"' + end
+        return tag
+
+    svg = re.sub(r"<[a-zA-Z][^<>]*>", fix_tag, svg)
+    svg = re.sub(r"<style>.*?</style>", lambda m: re.sub(
+        r"#[0-9a-fA-F]{6}\b", lambda h: h.group(0) if h.group(0).lower() in keep else var(h.group(0)),
+        m.group(0)), svg, flags=re.S)
+    reds = sorted(set(re.findall(r"var\(--c([0-9a-f]{6})\)", svg)))
+
+    def green(h):
+        return h[2:4] + h[0:2] + h[4:6]
+    at = LOOP - HOLD + 0.3
+    k = [0, at, at + FADE, LOOP + at, LOOP + at + FADE, 2 * LOOP]
+    pc = [f"{t / (2 * LOOP) * 100:.3f}%" for t in k]
+    red_set = ";".join(f"--c{h}:#{h}" for h in reds)
+    green_set = ";".join(f"--c{h}:#{green(h)}" for h in reds)
+    block = ("".join(f"@property --c{h}{{syntax:'&lt;color&gt;';inherits:true;initial-value:#{h}}}" for h in reds)
+             + f":root{{animation:palette {2 * LOOP}s infinite}}"
+             f"@keyframes palette{{{pc[0]},{pc[1]}{{{red_set}}}{pc[2]},{pc[3]}{{{green_set}}}"
+             f"{pc[4]},{pc[5]}{{{red_set}}}}}")
+    return re.sub(r"^(<svg[^>]*>)", lambda m: m.group(1) + f'<style id="palette">{block}</style>',
+                  svg.strip())
 
 
 QUERY = """query($login:String!){user(login:$login){contributionsCollection{
@@ -90,7 +135,7 @@ THEMES = {
         pad=(30, 62, 30, 44), bg="#0a0505", radius=1,
         cells=["#1f0d0d", "#5c1414", "#9e1c1c", "#e03434", "#ff5c5c"],
         outline=None,
-        snake=dict(length=14, w=(5, 1), colors=("#ff5c5c", "#4a0f0f"), steps=6),
+        trail=dict(n=34, gap=5, size=(6, 1.5), colors=("#ff5c5c", "#4a0f0f"), start=8),
         head=dict(r=0, cursor=True, fill="#ff5c5c"),
         highlight=None, glow=True, font=MONO,
     ),
@@ -199,10 +244,29 @@ def render(user, width, cells, total, theme_name):
         return (f'<path class="b {name}" d="{d}" fill="none" stroke="{color}" stroke-width="{stroke_w}" '
                 f'stroke-linecap="{cap}" stroke-linejoin="{"miter" if cap == "square" else "round"}"{extra}/>')
 
-    sn = th["snake"]
-    k_n = sn.get("steps", 10)
     mix = lambda c1, c2, t: "#" + "".join(
         f"{round(int(c1[i:i + 2], 16) * (1 - t) + int(c2[i:i + 2], 16) * t):02x}" for i in (1, 3, 5))
+    body = []
+    if "trail" in th:
+        # A trail of small blocks each riding the route a little behind the head.
+        # Moving small shapes is far cheaper to redraw than re-dashing long strokes.
+        tr = th["trail"]
+        lag = tr["gap"] / (PITCH / STEP)
+        for k in range(1, tr["n"] + 1):
+            t = k / tr["n"]
+            size = tr["size"][0] + (tr["size"][1] - tr["size"][0]) * t
+            seg = (f'<rect class="tr" style="animation-delay:{k * lag:.3f}s" x="{-size / 2:.2f}" '
+                   f'y="{-size / 2:.2f}" width="{size:.2f}" height="{size:.2f}" rx="1" '
+                   f'fill="{mix(tr["colors"][0], tr["colors"][1], t)}"/>')
+            if k > tr["start"]:
+                need = round((k - tr["start"]) / (tr["n"] - tr["start"]) * len(eat_order))
+                at = pct(eat_order[max(need - 1, 0)])
+                css.append(f"@keyframes g{k}{{0%{{opacity:0}}{at},100%{{opacity:1}}}}.g{k}{{animation-name:g{k}}}")
+                seg = f'<g class="anim grow g{k}">{seg}</g>'
+            body.append(seg)
+        body.reverse()
+    sn = th.get("snake", dict(length=1, w=(1, 1), colors=("#000000", "#000000")))
+    k_n = sn.get("steps", 10) if "snake" in th else 0
     th["layers"] = []
     for i in range(k_n):  # tail (longest, thinnest) first, head last
         t = 1 - i / max(k_n - 1, 1)
@@ -210,7 +274,6 @@ def render(user, width, cells, total, theme_name):
         w = sn["w"][0] + (sn["w"][1] - sn["w"][0]) * t
         th["layers"].append((length, round(w, 2), mix(sn["colors"][0], sn["colors"][1], t)))
 
-    body = []
     if th.get("outline"):
         for j, (length, sw, _) in enumerate(th["layers"]):
             body.append(body_layer(f"o{j}", length, sw + 2.5, th["outline"]))
@@ -237,7 +300,7 @@ def render(user, width, cells, total, theme_name):
                 f'<ellipse rx="{r + 1}" ry="{r}" fill="{hd["fill"]}"/>'
                 f'<circle cx="2.2" cy="-3.1" r="2" fill="#fff"/><circle cx="2.2" cy="3.1" r="2" fill="#fff"/>'
                 f'<circle cx="2.9" cy="-3.1" r="1.1" fill="{hd["eye"]}"/><circle cx="2.9" cy="3.1" r="1.1" fill="{hd["eye"]}"/>')
-    head_g = f'<g id="head" style="offset-path:path(\'{d}\')">{head}</g>'
+    head_g = f'<g id="head">{head}</g>'
 
     # -- score (rolling digits) -------------------------------------------------
     running, score_steps = 0, []
@@ -260,7 +323,9 @@ def render(user, width, cells, total, theme_name):
 .p,.b,#head,#snake,.anim{{animation-duration:{T:.2f}s;animation-iteration-count:infinite;animation-fill-mode:both}}
 .p{{transform-box:fill-box;transform-origin:center;animation-timing-function:ease-out}}
 .b,#head{{animation-timing-function:linear}}
-#head{{animation-name:hd;offset-rotate:auto}}
+#head,.tr{{offset-path:path('{d}');animation-name:hd;offset-rotate:auto}}
+.tr{{animation-duration:{T:.2f}s;animation-iteration-count:infinite;animation-fill-mode:both;animation-timing-function:linear}}
+.grow{{animation-timing-function:steps(1,end)}}
 #snake{{animation-name:fade}}
 .tongue{{animation:tongue .9s steps(1,end) infinite}}
 @keyframes tongue{{0%{{opacity:0}}55%{{opacity:1}}}}
@@ -270,7 +335,6 @@ text{{font-family:{th['font']}}}
 {cell_css}{''.join(css)}"""
 
     glow = ' filter="url(#glow)"' if th["glow"] else ""
-    swap = ' filter="url(#theme)"' if theme_name == "terminal" else ""
     dots = DOTS if theme_name == "terminal" else ""
     bg = f'<rect width="{W}" height="{H}" rx="12" fill="{th["bg"]}"/>' if th["bg"] else ""
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
@@ -280,11 +344,11 @@ text{{font-family:{th['font']}}}
 <filter id="glow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/>
 <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 <clipPath id="board"><rect x="{pl - 6}" y="{pt - 6}" width="{gw + 12}" height="{gh + 12}"/></clipPath>
-{chrome_defs}{theme_swap()}
+{chrome_defs}
 </defs>
-<g{swap}>{bg}{back}
+<g>{bg}{back}
 <g>{''.join(cell_svg)}</g>
-<g{glow}>{''.join(pellets)}</g>
+<g{"" if "trail" in th else glow}>{''.join(pellets)}</g>
 <g id="snake" clip-path="url(#board)"><g{glow}>{''.join(body)}{head_g}</g></g>
 {front}
 </g>{dots}
@@ -417,7 +481,8 @@ def main():
     width, cells, total = fetch(user, os.environ["GITHUB_TOKEN"])
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
-        f.write(render(user, width, cells, total, theme))
+        svg = render(user, width, cells, total, theme)
+        f.write(palette_vars(svg) if theme == "terminal" else svg)
     print(f"wrote {out} ({theme})")
 
 
