@@ -202,7 +202,7 @@ KEYS = [(0, 0, 0, 1, .21), (.55, -.42, .05, 1, .2), (.8, -.42, .05, 1, .2),
         (1.62, .3, -.06, .55, .22), (1.72, .26, -.05, 1, .22), (2.1, 0, 0, 1, .24),
         (2.4, 0, 0, 1, .24)]
 # On GitHub the image's clock starts while the page is still parsing it, so the
-# first moments are often never painted: the eye prints in and holds a beat first.
+# first moments are often never painted: the eye holds still for a beat first.
 EYE_PAD = 0.6
 FRAME_T0, FRAME_DT = .35 + EYE_PAD, .085
 
@@ -343,8 +343,10 @@ def _eye_frame(W, H, cw, ch, yaw, pitch, opening, pupil, zoom=1.0):
 
 
 def ascii_eye(W, H, cw=7, ch=11.5):
-    """Animated 3D ASCII eye: prints in, looks around and blinks, then fades
-    as the rain falls over it. Replays every CYCLE.
+    """Animated 3D ASCII eye: looks around and blinks, then stays put while
+    the rain wipes it away column by column (it is clipped to the rain
+    curtains, see morph). It is back under the curtains for the second shower,
+    so the rain uncovers it again. Replays every CYCLE.
 
     Returns (css, svg).
     """
@@ -365,7 +367,7 @@ def ascii_eye(W, H, cw=7, ch=11.5):
             main = max(weight, key=weight.get)
             body = "".join(escape(t) if c == main else f'<tspan class="{c}">{escape(t)}</tspan>'
                            for c, t in runs if t)
-            reveal = f' class="{main} er{j}"' if f == 0 else f' class="{main}"'
+            reveal = f' class="{main}"'
             out.append(f'<text{reveal} x="0" y="{j * ch + ch * .8:.1f}" textLength="{cols * cw}" '
                        f'lengthAdjust="spacing">{body}</text>')
         # Frames are switched with SMIL display: CSS can't animate display
@@ -373,20 +375,12 @@ def ascii_eye(W, H, cw=7, ch=11.5):
         # moved offscreen) still cost nearly a full redraw every frame, while
         # display:none ones cost nothing.
         start = 0 if f == 0 else FRAME_T0 + f * FRAME_DT
-        end = FRAME_T0 + (f + 1) * FRAME_DT if f < len(FRAMES) - 1 else EYE + 1.3
+        end = FRAME_T0 + (f + 1) * FRAME_DT if f < len(FRAMES) - 1 else EYE + 6.2  # first shower done
         a, b = start / CYCLE, end / CYCLE
-        swap = (f'keyTimes="0;{b:.5f}" values="inline;none"' if f == 0
+        swap = (f'keyTimes="0;{b:.5f};{BACK / CYCLE:.5f}" values="inline;none;inline"' if f == 0
                 else f'keyTimes="0;{a:.5f};{b:.5f}" values="none;inline;none"')
         frames.append(f'<g display="{"inline" if f == 0 else "none"}"><animate attributeName="display" '
                       f'dur="{CYCLE}s" repeatCount="indefinite" calcMode="discrete" {swap}/>{"".join(out)}</g>')
-    def pc(t):
-        return f"{t / CYCLE * 100:.3f}%"
-    for j in range(len(rows)):  # rows print in top to bottom
-        d = j * .018
-        css.append(f"@keyframes er{j}{{0%,{pc(d)}{{opacity:0}}{pc(d + .2)},100%{{opacity:1}}}}"
-                   f".er{j}{{animation:er{j} {CYCLE}s ease-out infinite}}")
-    css.append(f"@keyframes eyeout{{0%,{pc(EYE + .3)}{{opacity:1}}{pc(EYE + 1.2)},100%{{opacity:0}}}}"
-               f".eye{{animation:eyeout {CYCLE}s ease-in infinite}}")
     return "".join(css), f'<g class="eye">{"".join(frames)}</g>'
 
 
@@ -450,10 +444,11 @@ def morph(snake_svg):
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
 <title>{USER} — terminal profile</title>
 <style>{css}{eye_css}.rain text{{font-family:{MONO};font-size:13px}}</style>
-<defs><clipPath id="card"><rect width="{W}" height="{H}" rx="12"/></clipPath></defs>
+<defs><clipPath id="card"><rect width="{W}" height="{H}" rx="12"/></clipPath>
+<clipPath id="wipe">{curtain}</clipPath></defs>
 {''.join(parts)}
 <g opacity="0">{round_swap("opacity", "0", "1")}{fill}</g>
-<g clip-path="url(#card)"><g class="curtain" fill="{BG}">{curtain}</g>{eye}<g class="rain" fill="{HI}">{rain}</g></g>
+<g clip-path="url(#card)"><g class="curtain" fill="{BG}">{curtain}</g><g clip-path="url(#wipe)">{eye}</g><g class="rain" fill="{HI}">{rain}</g></g>
 </svg>"""
 
 
