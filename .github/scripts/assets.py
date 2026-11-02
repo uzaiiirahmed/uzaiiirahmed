@@ -1,36 +1,92 @@
-"""Static terminal-theme README assets (header, stack, link buttons).
+"""ASCII terminal README assets.
 
-These don't depend on live data, so run this once after editing and commit
-the output in assets/:  python .github/scripts/assets.py
-All-in-one window (needs the day's snake):
-    python .github/scripts/assets.py combined dist/commit-snake.svg dist/profile.svg
-Icons in icons/ are from Simple Icons (CC0) and Devicon (MIT).
+    python .github/scripts/assets.py              -> assets/ (header, link buttons)
+    python .github/scripts/assets.py morph out.svg -> the animated profile card: a
+        Windows 98 desktop where a DOS prompt runs `launch eye.exe` (a window pops
+        up with a 3D ASCII eye) and `open about.txt` (a Notepad window pops up and
+        matrix rain paints the name in), then everything closes and replays.
+Logos are from Simple Icons (CC0).
 """
 import os
 import random
 import re
 import sys
 
-from snake import DOTS, HOLD, LOOP, round_swap
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "..", "assets")
 
 USER = "uzaiiirahmed"
-PROMPT = f"{USER}@github:~$"
-W = 851  # matches the snake board width
+PROMPT = "C:\\Users\\uzair>"
+W = 851
 MONO = "ui-monospace,SFMono-Regular,'Cascadia Mono',Menlo,Consolas,monospace"
-BG, BAR, DIM, MID, HI = "#0a0505", "#1a0c0c", "#9e1c1c", "#e03434", "#ff5c5c"
+BG, DIM, MID, HI = "#0a0505", "#9e1c1c", "#e03434", "#ff5c5c"
 FS = 13
 CW = FS * 0.6          # forced glyph advance (textLength keeps it exact)
 LINE = 22
 TYPE = 0.045           # seconds per typed character
 
-STACK = [("c", "c"), ("cplusplus", "c++"), ("csharp", "c#"), ("css", "css"),
-         ("html5", "html"), ("unity", "unity"), ("unrealengine", "unreal")]
 LINKS = [("globe", "portfolio", "https://uzair-ahmed.netlify.app"),
          ("linkedin", "linkedin", "https://linkedin.com/in/uzair-ahmed-381149314"),
          ("instagram", "instagram", "https://instagram.com/uzaiiirahmed")]
+# "UZAIR AHMED" in the figlet font "colossal"
+NAME = [
+    '888     8888888888888P       d888888888888888888b.           d8888888    888888b     d88888888888888888888b.  ',
+    '888     888      d88P       d88888  888  888   Y88b         d88888888    8888888b   d8888888       888  "Y88b ',
+    '888     888     d88P       d88P888  888  888    888        d88P888888    88888888b.d88888888       888    888 ',
+    '888     888    d88P       d88P 888  888  888   d88P       d88P 8888888888888888Y88888P8888888888   888    888 ',
+    '888     888   d88P       d88P  888  888  8888888P"       d88P  888888    888888 Y888P 888888       888    888 ',
+    '888     888  d88P       d88P   888  888  888 T88b       d88P   888888    888888  Y8P  888888       888    888 ',
+    'Y88b. .d88P d88P       d8888888888  888  888  T88b     d8888888888888    888888   "   888888       888  .d88P ',
+    ' "Y88888P" d8888888888d88P     8888888888888   T88b   d88P     888888    888888       88888888888888888888P"  ',
+]
+NAME_SHADES = ["#ffd6d6", "#ffb3a3", "#ff8a7a", "#ff5c5c", "#f04a44", "#e03434", "#c42828", "#9e1c1c"]
+
+CLIENT_Y = 25  # top of the window's client area
+UI_FONT = "Tahoma,'MS Sans Serif',Verdana,Arial,sans-serif"
+
+
+def bevel(x, y, w, h, tl, br, tl2=None, br2=None):
+    """Win9x 3D edge: light top/left, dark bottom/right, optionally doubled."""
+    out = (f'<path d="M{x} {y + h - 1} V{y} H{x + w - 1}" stroke="{tl}"/>'
+           f'<path d="M{x} {y + h - .5} H{x + w - .5} V{y}" stroke="{br}"/>')
+    if tl2:
+        out += bevel(x + 1, y + 1, w - 2, h - 2, tl2, br2)
+    return out
+
+
+def win_frame(W, H, title):
+    """Windows 98 window chrome: grey bevelled frame, gradient caption with
+    the app icon and a bold title, and the three square caption buttons."""
+    tb = CLIENT_Y - 7  # caption height
+    bx = lambda x, glyph: (f'<rect x="{x}" y="5" width="16" height="14" fill="#c0c0c0"/>'
+                           + bevel(x + .5, 5.5, 16, 14, "#fff", "#000", "#dfdfdf", "#808080") + glyph)
+    x_cls, x_max, x_min = W - 22, W - 40, W - 56
+    return (f'<g shape-rendering="crispEdges" fill="none" stroke-width="1">'
+            f'<rect width="{W}" height="{H}" fill="#c0c0c0"/>'
+            + bevel(.5, .5, W, H, "#dfdfdf", "#000", "#fff", "#808080")
+            + f'<defs><linearGradient id="cap"><stop offset="0" stop-color="#800000"/>'
+            f'<stop offset="1" stop-color="#d04848"/></linearGradient></defs>'
+            f'<rect x="3" y="3" width="{W - 6}" height="{tb}" fill="url(#cap)"/>'
+            # app icon: a little MS-DOS prompt
+            f'<rect x="6" y="5" width="15" height="13" fill="#000" stroke="#c0c0c0"/>'
+            f'<rect x="6.5" y="5.5" width="14" height="3" fill="#000080" stroke="none"/>'
+            f'<path d="M9 12.5 h2 M12 12.5 h1" stroke="#c0c0c0"/>'
+            + bx(x_min, f'<path d="M{x_min + 4} 15.5 h6 M{x_min + 4} 16.5 h6" stroke="#000"/>')
+            + bx(x_max, f'<path d="M{x_max + 3.5} 7.5 h9 v7 h-9 Z M{x_max + 3.5} 8.5 h9" stroke="#000"/>')
+            + bx(x_cls, f'<path d="M{x_cls + 4} 8 l7 7 M{x_cls + 5} 8 l7 7 M{x_cls + 11} 8 l-7 7 M{x_cls + 12} 8 l-7 7" '
+                        f'stroke="#000" shape-rendering="auto"/>')
+            # sunken client area
+            + bevel(3.5, tb + 5.5, W - 6, H - tb - 8, "#808080", "#fff", "#000", "#dfdfdf")
+            + f'<rect x="5" y="{tb + 7}" width="{W - 10}" height="{H - tb - 12}" fill="{BG}"/></g>'
+            f'<text x="26" y="16" font-family="{UI_FONT}" font-size="11" font-weight="700" fill="#fff">{title}</text>')
+
+
+def ascii_name(x, y, fs=10.5):
+    w = len(NAME[0]) * fs * .6
+    return "".join(f'<text x="{x}" y="{y + j * fs:.1f}" font-size="{fs}" fill="{c}" textLength="{w:.1f}" '
+                   f'lengthAdjust="spacing" style="white-space:pre">{row.replace(chr(34), "&quot;")}</text>'
+                   for j, (row, c) in enumerate(zip(NAME, NAME_SHADES))), len(NAME) * fs
 
 
 def icon(name, x, y, size, fill):
@@ -44,11 +100,11 @@ def icon(name, x, y, size, fill):
 class Term:
     """Builds a terminal window whose lines type out one after another."""
 
-    def __init__(self, title, prefix="", start=0.4, period=None):
+    def __init__(self, title, prefix="", start=0.4, period=None, w=W):
         self.p = prefix  # keeps class/id names unique when several windows share one SVG
         self.period = period  # replay the typing every `period` seconds (None: type once)
         self.title, self.body, self.css, self.defs, self.raw = title, [], [], [], []
-        self.t, self.y, self.n = start, 56, 0
+        self.t, self.y, self.n, self.w = start, 52, 0, w
 
     def _reveal(self, start, dur, steps):
         k = self.n
@@ -64,20 +120,20 @@ class Term:
                         f"animation:grow {dur:.2f}s steps({steps},start) {start:.2f}s forwards}}")
         return k
 
-    def type(self, cmd):
-        """A prompt line where the command gets typed."""
+    def type(self, cmd, wait=0.0):
+        """A prompt line where the command gets typed (`wait` s after the prompt shows)."""
         x0 = 20
         px = x0 + (len(PROMPT) + 1) * CW
         k = self._reveal(self.t, 0.01, 1)
         self.body.append(f'<g class="{self.p}r{k}"><text x="{x0}" y="{self.y}" fill="{MID}" '
                          f'textLength="{len(PROMPT) * CW:.1f}">{PROMPT}</text></g>')
         dur = max(len(cmd), 1) * TYPE
-        k2 = self._reveal(self.t + 0.25, dur, len(cmd))
+        k2 = self._reveal(self.t + 0.25 + wait, dur, len(cmd))
         self.defs.append(f'<clipPath id="{self.p}c{k2}"><rect class="{self.p}r{k2}" x="{px}" y="{self.y - FS}" '
                          f'width="{len(cmd) * CW + 1:.1f}" height="{FS + 5}"/></clipPath>')
         self.body.append(f'<text x="{px}" y="{self.y}" fill="{HI}" clip-path="url(#{self.p}c{k2})" '
                          f'textLength="{len(cmd) * CW:.1f}">{cmd}</text>')
-        self.t += 0.25 + dur + 0.35
+        self.t += 0.25 + wait + dur + 0.35
         self.y += LINE
 
     def out(self, svg, height=LINE, pause=0.25):
@@ -100,11 +156,11 @@ class Term:
         cx = x0 + (len(PROMPT) + 1) * CW
         self.body.append(f'<g class="{self.p}r{k}"><text x="{x0}" y="{self.y}" fill="{MID}" '
                          f'textLength="{len(PROMPT) * CW:.1f}">{PROMPT}</text>'
-                         f'<rect class="blink" x="{cx}" y="{self.y - FS + 1}" width="{CW:.1f}" height="{FS + 2}" fill="{HI}"/></g>')
+                         f'<text class="blink" x="{cx}" y="{self.y}" fill="{HI}">_</text></g>')
         self.y += LINE
 
-    def svg(self, bottom=14):
-        H = self.y - LINE + bottom + 8
+    def svg(self, bottom=14, h=None):
+        H, W = h or self.y - LINE + bottom + 8, self.w
         return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
 <style>
 svg{{font-size:{FS}px}}text{{font-family:{MONO};white-space:pre}}
@@ -114,78 +170,23 @@ svg{{font-size:{FS}px}}text{{font-family:{MONO};white-space:pre}}
 </style>
 <defs><filter id="glow" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="2" result="b"/>
 <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>{''.join(self.defs)}</defs>
-<g><rect width="{W}" height="{H}" rx="12" fill="{BG}"/>
-<rect width="{W}" height="26" rx="12" fill="{BAR}"/><rect y="14" width="{W}" height="12" fill="{BAR}"/>
-<text x="{W / 2}" y="17" font-size="11" fill="#8a5f5f" text-anchor="middle">{self.title}</text>
+<g>{win_frame(W, H, self.title)}
 <g filter="url(#glow)">{''.join(self.body)}</g></g>
-{''.join(self.raw)}{DOTS}
+{''.join(self.raw)}
 </svg>"""
 
 
 def header(prefix="", start=0.4, period=None):
-    t = Term(f"{USER} — zsh", prefix, start, period)
+    t = Term(f"MS-DOS Prompt - {USER}", prefix, start, period)
     t.type("whoami")
-    t.out(f'<text x="18" y="{t.y + 26}" font-size="44" font-weight="800" fill="{HI}" letter-spacing="3">'
-          f'UZAIR AHMED</text>', height=LINE * 2 + 12, pause=0.5)
+    name, nh = ascii_name(20, t.y + 4)
+    t.out(name, height=nh + 18, pause=0.5)
     t.type("cat about.txt")
     for line in ["&gt; I write code to make pixels come alive.",
                  "&gt; stack: C · C++ · C# · Unity · Unreal · HTML/CSS"]:
         t.out(f'<text x="20" y="{t.y}" fill="{MID}">{line}</text>', pause=0.18)
     t.cursor()
     return t.svg()
-
-
-def stack(prefix="", start=0.4, period=None):
-    t = Term(f"{USER} — ~/stack", prefix, start, period)
-    t.type("ls ~/stack")
-    cols, size = len(STACK), 34
-    slot = (W - 40) / cols
-    for i, (name, label) in enumerate(STACK):
-        cx = 20 + slot * i + slot / 2
-        t.out(icon(name, cx - size / 2, t.y - 10, size, HI) +
-              f'<text x="{cx}" y="{t.y + size + 8}" fill="{MID}" text-anchor="middle">{label}/</text>',
-              height=0, pause=0.12)
-    t.y += size + 34
-    t.type("./connect.sh")
-    return t.svg(bottom=4)
-
-
-def combined(snake_svg):
-    """Header, snake and stack in one terminal window. Needs today's snake."""
-    t = Term(f"{USER} — zsh")
-    t.type("whoami")
-    t.out(f'<text x="18" y="{t.y + 26}" font-size="44" font-weight="800" fill="{HI}" letter-spacing="3">'
-          f'UZAIR AHMED</text>', height=LINE * 2 + 12, pause=0.5)
-    t.type("cat about.txt")
-    for line in ["&gt; I write code to make pixels come alive.",
-                 "&gt; stack: C · C++ · C# · Unity · Unreal · HTML/CSS"]:
-        t.out(f'<text x="20" y="{t.y}" fill="{MID}">{line}</text>', pause=0.18)
-    t.y += 8
-    t.type("./snake --eat commits")
-    # reuse the snake's board + status line, cropping off its own title bar and prompt
-    sw, sh = map(float, re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', snake_svg).group(1, 2))
-    top = 56
-    inner = re.sub(r"^<svg[^>]*>", "", snake_svg.strip()).rsplit("</svg>", 1)[0]
-    nested = (f'<svg x="0" y="{t.y - 10}" width="{sw}" height="{sh - top}" '
-              f'viewBox="0 {top} {sw} {sh - top}">{inner}</svg>')
-    t.embed(nested, sh - top + 8)
-    t.type("ls ~/stack")
-    cols, size = len(STACK), 34
-    slot = (W - 40) / cols
-    for i, (name, label) in enumerate(STACK):
-        cx = 20 + slot * i + slot / 2
-        t.out(icon(name, cx - size / 2, t.y - 10, size, HI) +
-              f'<text x="{cx}" y="{t.y + size + 8}" fill="{MID}" text-anchor="middle">{label}/</text>',
-              height=0, pause=0.12)
-    t.y += size + 34
-    t.type("./connect.sh")
-    return t.svg(bottom=4)
-
-
-def _nest(svg, y):
-    w, h = map(float, re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', svg).group(1, 2))
-    inner = re.sub(r"^<svg[^>]*>", "", svg.strip()).rsplit("</svg>", 1)[0]
-    return f'<svg x="0" y="{y}" width="{w}" height="{h}" viewBox="0 0 {w} {h}">{inner}</svg>', h
 
 
 GLYPHS = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789:.=*+ZXE"
@@ -199,12 +200,20 @@ IRIS = ["#2e0707", "#7a1414", "#c42828", "#ff5a4a", "#ffb3a3"]
 # rendered in between with easing so the look-around glides instead of stepping
 KEYS = [(0, 0, 0, 1, .21), (.55, -.42, .05, 1, .2), (.8, -.42, .05, 1, .2),
         (1.3, .38, -.1, 1, .21), (1.45, .38, -.1, .5, .21), (1.53, .34, -.08, .06, .22),
-        (1.62, .3, -.06, .55, .22), (1.72, .26, -.05, 1, .22), (2.1, 0, 0, 1, .24),
-        (2.4, 0, 0, 1, .24)]
-# On GitHub the image's clock starts while the page is still parsing it, so the
-# first moments are often never painted: the eye holds still for a beat first.
-EYE_PAD = 0.6
-FRAME_T0, FRAME_DT = .35 + EYE_PAD, .085
+        (1.62, .3, -.06, .55, .22), (1.72, .26, -.05, 1, .22), (2.2, .28, .24, 1, .23),
+        (2.6, .28, .24, 1, .23), (3.1, -.3, -.18, 1, .22), (3.45, -.3, -.18, 1, .22),
+        (3.6, -.3, -.18, .07, .22), (3.75, -.26, -.15, 1, .22), (4.3, 0, 0, 1, .21)]
+FRAME_DT = .085
+HOLD0 = .8  # the eye rests on frame 0 between look-arounds
+
+# Desktop timeline, seconds into each CYCLE
+CYCLE = 36.0
+LAUNCH_AT = 0.4                 # DOS prompt starts typing `launch eye.exe`
+EYE_OPEN = 1.75                 # eye.exe window pops up
+NOTE_TYPE = EYE_OPEN + 5.0      # prompt types `open about.txt`
+NOTE_OPEN = NOTE_TYPE + 1.1     # about.txt pops up; rain paints the name in
+BACK = CYCLE - 4.2              # rain wipes the name away again
+NOTE_CLOSE, EYE_CLOSE = CYCLE - .9, CYCLE - .5
 
 
 def _frames():
@@ -220,9 +229,7 @@ def _frames():
 
 
 FRAMES = _frames()
-EYE = FRAME_T0 + len(FRAMES) * FRAME_DT  # the rain starts falling over the eye here
-CYCLE = 2 * LOOP                          # eye -> rain -> profile (two snake rounds) -> rain -> eye
-BACK = CYCLE - HOLD + 0.3                 # second round's game over: rain covers the profile again
+LOOK = HOLD0 + len(FRAMES) * FRAME_DT
 
 
 def _eye_frame(W, H, cw, ch, yaw, pitch, opening, pupil, zoom=1.0):
@@ -343,10 +350,8 @@ def _eye_frame(W, H, cw, ch, yaw, pitch, opening, pupil, zoom=1.0):
 
 
 def ascii_eye(W, H, cw=7, ch=11.5):
-    """Animated 3D ASCII eye: looks around and blinks, then stays put while
-    the rain wipes it away column by column (it is clipped to the rain
-    curtains, see morph). It is back under the curtains for the second shower,
-    so the rain uncovers it again. Replays every CYCLE.
+    """Animated 3D ASCII eye that keeps looking around and blinking from
+    EYE_OPEN until EYE_CLOSE, every CYCLE.
 
     Returns (css, svg).
     """
@@ -374,21 +379,25 @@ def ascii_eye(W, H, cw=7, ch=11.5):
         # inside an <img>, and hidden-but-displayed frames (opacity, visibility,
         # moved offscreen) still cost nearly a full redraw every frame, while
         # display:none ones cost nothing.
-        start = 0 if f == 0 else FRAME_T0 + f * FRAME_DT
-        end = FRAME_T0 + (f + 1) * FRAME_DT if f < len(FRAMES) - 1 else EYE + 6.2  # first shower done
-        a, b = start / CYCLE, end / CYCLE
-        swap = (f'keyTimes="0;{b:.5f};{BACK / CYCLE:.5f}" values="inline;none;inline"' if f == 0
-                else f'keyTimes="0;{a:.5f};{b:.5f}" values="none;inline;none"')
-        frames.append(f'<g display="{"inline" if f == 0 else "none"}"><animate attributeName="display" '
+        times, vals, base = ["0"], ["none"], EYE_OPEN
+        while base < EYE_CLOSE:
+            a = base if f == 0 else base + HOLD0 + f * FRAME_DT
+            b = min(base + HOLD0 + (f + 1) * FRAME_DT, EYE_CLOSE)
+            if a < b:
+                times += [f"{a / CYCLE:.5f}", f"{b / CYCLE:.5f}"]
+                vals += ["inline", "none"]
+            base += LOOK
+        swap = f'keyTimes="{";".join(times)}" values="{";".join(vals)}"'
+        frames.append(f'<g display="none"><animate attributeName="display" '
                       f'dur="{CYCLE}s" repeatCount="indefinite" calcMode="discrete" {swap}/>{"".join(out)}</g>')
     return "".join(css), f'<g class="eye">{"".join(frames)}</g>'
 
 
-def matrix_rain(W, H, seed=7, cw=14, trail=18):
+def matrix_rain(W, H, start, back, seed=7, cw=14, trail=18):
     """Matrix rain that falls twice per CYCLE. Each column has a dark curtain
-    whose edge rides the falling drop: after the eye it retracts behind the
-    drop, painting the profile into view; at BACK it slides down in front of
-    it, wiping the profile away for the next eye. (Plain rects rather than
+    whose edge rides the falling drop: at `start` it retracts behind the drop,
+    painting the content into view; at `back` it slides down in front of it,
+    wiping the content away again. (Plain rects rather than
     masks: masks over the profile are too slow to redraw every frame.)
 
     Returns (css, curtains, rain).
@@ -401,8 +410,8 @@ def matrix_rain(W, H, seed=7, cw=14, trail=18):
         return f"{t / CYCLE * 100:.3f}%"
     for i in range(int(W // cw) + 1):
         x = i * cw
-        d1, f1 = EYE + rnd.uniform(0, 1.8), rnd.uniform(2.8, 4.2)  # f: time for the head to travel H + L
-        d2, f2 = BACK + rnd.uniform(0, .7), rnd.uniform(1.8, 2.4)
+        d1, f1 = start + rnd.uniform(0, 1.4), rnd.uniform(2.4, 3.6)  # f: time for the head to travel H + L
+        d2, f2 = back + rnd.uniform(0, .7), rnd.uniform(1.8, 2.4)
         r1, r2 = f1 * H / (H + L), f2 * H / (H + L)                # time for the head to reach the bottom
         css.append(f"@keyframes m{i}{{0%,{pc(d1)}{{transform:translateY(0)}}{pc(d1 + f1)},{pc(d2 - .01)}"
                    f"{{transform:translateY({H + L}px)}}{pc(d2)}{{transform:translateY(0)}}"
@@ -420,35 +429,68 @@ def matrix_rain(W, H, seed=7, cw=14, trail=18):
     return "".join(css), "".join(curtain), "".join(rain)
 
 
-def morph(snake_svg):
-    """Header, snake and stack as three windows that merge into one terminal
-    and split apart again every round, framed by the eye + rain loop."""
-    gap = 10
-    parts, y, seams = [], 0, []
-    # (the typing waits for the rain to finish painting)
-    for i, svg in enumerate([header("h", EYE + 5.2, CYCLE), snake_svg, stack("s", EYE + 5.5, CYCLE)]):
-        nested, h = _nest(svg, y)
-        parts.append(nested)
-        if i:
-            seams.append(y)
-        y += h + gap
-    H = y - gap
-    # Merged look: fill each gap plus the lower window's title bar with terminal
-    # background (squaring off the rounded corners) and draw a faint divider.
-    fill = "".join(
-        f'<rect x="0" y="{sy - gap - 12}" width="{W}" height="{gap + 12 + 26}" fill="{BG}"/>'
-        f'<line x1="20" x2="{W - 20}" y1="{sy - gap / 2 + 6}" y2="{sy - gap / 2 + 6}" stroke="{DIM}" '
-        f'stroke-opacity=".45" stroke-dasharray="2 5"/>' for sy in seams)
-    css, curtain, rain = matrix_rain(W, H)
-    eye_css, eye = ascii_eye(W, H)
+def window(x, y, w, h, title, inner, show=None):
+    """A Win98 window at (x, y). With show=(open, close) it pops open and
+    vanishes again at those times every CYCLE."""
+    svg = f'<svg x="{x}" y="{y}" width="{w}" height="{h}" viewBox="0 0 {w} {h}">{win_frame(w, h, title)}{inner}</svg>'
+    if not show:
+        return svg
+    a, b = show
+    k = lambda *ts: ";".join(f"{t / CYCLE:.5f}" for t in ts)
+    smil = f'dur="{CYCLE}s" repeatCount="indefinite" calcMode="discrete"'
+    # Both done in SMIL with discrete steps: CSS can't animate display in an
+    # <img>, and an endless CSS transform on the window repaints all of it
+    # every frame. The pop grows from the centre in three snaps.
+    cx, cy = x + w / 2, y + h / 2
+    return (f'<g display="none"><animate attributeName="display" {smil} keyTimes="0;{k(a, b)}" '
+            f'values="none;inline;none"/><g transform="translate({cx} {cy})"><g>'
+            f'<animateTransform attributeName="transform" type="scale" {smil} '
+            f'keyTimes="0;{k(a + .04, a + .08)}" values=".82;.92;1"/>'
+            f'<g transform="translate({-cx} {-cy})">{svg}</g></g></g></g>')
+
+
+def morph():
+    """Three overlapping Win98 windows: the DOS prompt, eye.exe and about.txt."""
+    css = []
+    # 1. DOS prompt (always open)
+    tw, th = 500, 250
+    t = Term(f"MS-DOS Prompt - {USER}", "t", LAUNCH_AT, CYCLE, w=tw)
+    t.type("launch eye.exe")
+    t.t = EYE_OPEN  # the prompt comes back as eye.exe starts; the next command waits
+    t.type("open about.txt", wait=NOTE_TYPE - EYE_OPEN)
+    t.cursor()
+    term = re.sub(r"^<svg", '<svg x="0" y="0"', t.svg(h=th).strip())
+    # 2. eye.exe
+    ex, ey, ew, eh = 331, 110, 520, 290
+    cw, ch = ew - 10, eh - CLIENT_Y - 5
+    eye_css, eye = ascii_eye(cw, ch)
+    eye_win = window(ex, ey, ew, eh, "eye.exe", f'<svg x="5" y="{CLIENT_Y}" width="{cw}" height="{ch}">{eye}</svg>',
+                     (EYE_OPEN, EYE_CLOSE))
+    css.append(eye_css)
+    # 3. about.txt in Notepad, painted in by the rain
+    nx, ny, nw, nh = 30, 330, 600, 214
+    menu = 18
+    top = CLIENT_Y + menu + 2
+    cw, ch = nw - 10, nh - top - 5
+    name, name_h = ascii_name(0, 0, fs=8)
+    text = (f'<g transform="translate({(cw - len(NAME[0]) * 4.8) / 2:.1f} 22)">{name}</g>'
+            + "".join(f'<text x="18" y="{22 + name_h + 22 + k * 20}" fill="{MID}">{line}</text>'
+                      for k, line in enumerate(["&gt; I write code to make pixels come alive.",
+                                                "&gt; stack: C · C++ · C# · Unity · Unreal · HTML/CSS"])))
+    rain_css, curtain, rain = matrix_rain(cw, ch, NOTE_OPEN + .15, BACK)
+    inner = (f'<rect x="5" y="{CLIENT_Y}" width="{nw - 10}" height="{menu}" fill="#c0c0c0"/>'
+             f'<text x="12" y="{CLIENT_Y + 13}" font-family="{UI_FONT}" font-size="11" fill="#000" '
+             f'style="white-space:pre">File   Edit   Search   Help</text>'
+             f'<svg x="5" y="{top}" width="{cw}" height="{ch}"><rect width="{cw}" height="{ch}" fill="{BG}"/>'
+             f'{text}<g fill="{BG}">{curtain}</g><g class="rain" fill="{HI}">{rain}</g></svg>')
+    note = window(nx, ny, nw, nh, "about.txt - Notepad", inner, (NOTE_OPEN, NOTE_CLOSE))
+    css.append(rain_css)
+    H = ny + nh + 2
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
 <title>{USER} — terminal profile</title>
-<style>{css}{eye_css}.rain text{{font-family:{MONO};font-size:13px}}</style>
-<defs><clipPath id="card"><rect width="{W}" height="{H}" rx="12"/></clipPath>
-<clipPath id="wipe">{curtain}</clipPath></defs>
-{''.join(parts)}
-<g opacity="0">{round_swap("opacity", "0", "1")}{fill}</g>
-<g clip-path="url(#card)"><g class="curtain" fill="{BG}">{curtain}</g><g clip-path="url(#wipe)">{eye}</g><g class="rain" fill="{HI}">{rain}</g></g>
+<style>{"".join(css)}.rain text{{font-family:{MONO};font-size:13px}}
+svg{{font-size:{FS}px}}text{{font-family:{MONO};white-space:pre}}</style>
+{term}{eye_win}{note}
 </svg>"""
 
 
@@ -466,15 +508,13 @@ def button(name, label):
 
 
 def main():
-    if len(sys.argv) == 4 and sys.argv[1] in ("combined", "morph"):
-        with open(sys.argv[2], encoding="utf-8") as f:
-            svg = (combined if sys.argv[1] == "combined" else morph)(f.read())
-        with open(sys.argv[3], "w", encoding="utf-8") as f:
-            f.write(svg)
-        print("wrote " + sys.argv[3])
+    if len(sys.argv) == 3 and sys.argv[1] == "morph":
+        with open(sys.argv[2], "w", encoding="utf-8") as f:
+            f.write(morph())
+        print("wrote " + sys.argv[2])
         return
     os.makedirs(OUT, exist_ok=True)
-    files = {"header.svg": header(), "stack.svg": stack()}
+    files = {"header.svg": header()}
     for name, label, _ in LINKS:
         files[f"btn-{name}.svg"] = button(name, label)
     for fn, content in files.items():
