@@ -509,6 +509,7 @@ def button(name, label):
 
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "morph":
+        os.makedirs(os.path.dirname(sys.argv[2]) or ".", exist_ok=True)
         with open(sys.argv[2], "w", encoding="utf-8") as f:
             f.write(morph())
         print("wrote " + sys.argv[2])
