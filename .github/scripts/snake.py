@@ -18,7 +18,7 @@ PITCH = CELL + GAP
 LOOP = 32.0  # seconds per round; speed adapts so every round takes this long
 PRE = 1.2    # pause before the snake starts
 HOLD = 3.5   # pause after the last commit is eaten
-FADE = 1.4   # red <-> green crossfade, starts right after the last commit is eaten
+FADE = 1.4   # windows merge/split crossfade, starts right after the last commit is eaten
 
 DOTS = ('<circle cx="18" cy="13" r="5" fill="#ff5f57"/><circle cx="34" cy="13" r="5" fill="#febc2e"/>'
         '<circle cx="50" cy="13" r="5" fill="#28c840"/>')
@@ -37,60 +37,6 @@ def round_swap(attr, a, b):
             f'keyTimes="{key_times}" keySplines="0 0 1 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1;0 0 1 1" '
             f'values="{a};{a};{b};{b};{a};{a}"/>')
 
-
-def palette_vars(svg):
-    """Make every palette colour alternate red / green each round.
-
-    Each colour becomes a registered CSS custom property animated on :root;
-    its green twin is the same colour with the R and G channels swapped.
-    Much cheaper than a colour-matrix filter over the whole image, which has
-    to be re-run every frame. Browsers without @property simply stay red.
-    Safe to run again on output that already went through it.
-    """
-    keep = set(re.findall(r"#[0-9a-f]{6}", DOTS))
-    svg = re.sub(r'<style id="palette">.*?</style>', "", svg, flags=re.S)
-
-    def var(h):
-        return f"var(--c{h[1:].lower()})"
-
-    def fix_tag(m):
-        tag = m.group(0)
-        decls = []
-
-        def grab(a):
-            h = a.group(2).lower()
-            if h in keep:
-                return a.group(0)
-            decls.append(f"{a.group(1)}:{var(h)}")
-            return ""
-        tag = re.sub(r'\s(fill|stroke)="(#[0-9a-fA-F]{6})"', grab, tag)
-        if decls:
-            if ' style="' in tag:
-                tag = tag.replace(' style="', f' style="{";".join(decls)};', 1)
-            else:
-                end = "/>" if tag.endswith("/>") else ">"
-                tag = tag[:-len(end)] + f' style="{";".join(decls)}"' + end
-        return tag
-
-    svg = re.sub(r"<[a-zA-Z][^<>]*>", fix_tag, svg)
-    svg = re.sub(r"<style>.*?</style>", lambda m: re.sub(
-        r"#[0-9a-fA-F]{6}\b", lambda h: h.group(0) if h.group(0).lower() in keep else var(h.group(0)),
-        m.group(0)), svg, flags=re.S)
-    reds = sorted(set(re.findall(r"var\(--c([0-9a-f]{6})\)", svg)))
-
-    def green(h):
-        return h[2:4] + h[0:2] + h[4:6]
-    at = LOOP - HOLD + 0.3
-    k = [0, at, at + FADE, LOOP + at, LOOP + at + FADE, 2 * LOOP]
-    pc = [f"{t / (2 * LOOP) * 100:.3f}%" for t in k]
-    red_set = ";".join(f"--c{h}:#{h}" for h in reds)
-    green_set = ";".join(f"--c{h}:#{green(h)}" for h in reds)
-    block = ("".join(f"@property --c{h}{{syntax:'&lt;color&gt;';inherits:true;initial-value:#{h}}}" for h in reds)
-             + f":root{{animation:palette {2 * LOOP}s infinite}}"
-             f"@keyframes palette{{{pc[0]},{pc[1]}{{{red_set}}}{pc[2]},{pc[3]}{{{green_set}}}"
-             f"{pc[4]},{pc[5]}{{{red_set}}}}}")
-    return re.sub(r"^(<svg[^>]*>)", lambda m: m.group(1) + f'<style id="palette">{block}</style>',
-                  svg.strip())
 
 
 QUERY = """query($login:String!){user(login:$login){contributionsCollection{
@@ -482,7 +428,7 @@ def main():
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         svg = render(user, width, cells, total, theme)
-        f.write(palette_vars(svg) if theme == "terminal" else svg)
+        f.write(svg)
     print(f"wrote {out} ({theme})")
 
 

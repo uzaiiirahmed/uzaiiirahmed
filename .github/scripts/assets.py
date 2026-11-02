@@ -11,7 +11,7 @@ import random
 import re
 import sys
 
-from snake import DOTS, palette_vars, round_swap
+from snake import DOTS, HOLD, LOOP, round_swap
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "..", "assets")
@@ -44,14 +44,22 @@ def icon(name, x, y, size, fill):
 class Term:
     """Builds a terminal window whose lines type out one after another."""
 
-    def __init__(self, title, prefix="", start=0.4):
+    def __init__(self, title, prefix="", start=0.4, period=None):
         self.p = prefix  # keeps class/id names unique when several windows share one SVG
+        self.period = period  # replay the typing every `period` seconds (None: type once)
         self.title, self.body, self.css, self.defs, self.raw = title, [], [], [], []
         self.t, self.y, self.n = start, 56, 0
 
     def _reveal(self, start, dur, steps):
         k = self.n
         self.n += 1
+        if self.period:
+            a, b = start / self.period * 100, (start + dur) / self.period * 100
+            self.css.append(f"@keyframes {self.p}g{k}{{0%,{a:.3f}%{{transform:scaleX(0);"
+                            f"animation-timing-function:steps({steps},start)}}{b:.3f}%,100%{{transform:scaleX(1)}}}}"
+                            f".{self.p}r{k}{{transform-box:fill-box;transform-origin:left;"
+                            f"animation:{self.p}g{k} {self.period}s infinite}}")
+            return k
         self.css.append(f".{self.p}r{k}{{transform-box:fill-box;transform-origin:left;transform:scaleX(0);"
                         f"animation:grow {dur:.2f}s steps({steps},start) {start:.2f}s forwards}}")
         return k
@@ -114,8 +122,8 @@ svg{{font-size:{FS}px}}text{{font-family:{MONO};white-space:pre}}
 </svg>"""
 
 
-def header(prefix="", start=0.4):
-    t = Term(f"{USER} — zsh", prefix, start)
+def header(prefix="", start=0.4, period=None):
+    t = Term(f"{USER} — zsh", prefix, start, period)
     t.type("whoami")
     t.out(f'<text x="18" y="{t.y + 26}" font-size="44" font-weight="800" fill="{HI}" letter-spacing="3">'
           f'UZAIR AHMED</text>', height=LINE * 2 + 12, pause=0.5)
@@ -127,8 +135,8 @@ def header(prefix="", start=0.4):
     return t.svg()
 
 
-def stack(prefix="", start=0.4):
-    t = Term(f"{USER} — ~/stack", prefix, start)
+def stack(prefix="", start=0.4, period=None):
+    t = Term(f"{USER} — ~/stack", prefix, start, period)
     t.type("ls ~/stack")
     cols, size = len(STACK), 34
     slot = (W - 40) / cols
@@ -191,9 +199,12 @@ IRIS = ["#2e0707", "#7a1414", "#c42828", "#ff5a4a", "#ffb3a3"]
 # rendered in between with easing so the look-around glides instead of stepping
 KEYS = [(0, 0, 0, 1, .21), (.55, -.42, .05, 1, .2), (.8, -.42, .05, 1, .2),
         (1.3, .38, -.1, 1, .21), (1.45, .38, -.1, .5, .21), (1.53, .34, -.08, .06, .22),
-        (1.62, .3, -.06, .55, .22), (1.72, .26, -.05, 1, .22), (2.05, 0, 0, 1, .27),
-        (2.3, 0, 0, 1, .44)]
-FRAME_T0, FRAME_DT = .35, .085
+        (1.62, .3, -.06, .55, .22), (1.72, .26, -.05, 1, .22), (2.1, 0, 0, 1, .24),
+        (2.4, 0, 0, 1, .24)]
+# On GitHub the image's clock starts while the page is still parsing it, so the
+# first moments are often never painted: the eye prints in and holds a beat first.
+EYE_PAD = 0.6
+FRAME_T0, FRAME_DT = .35 + EYE_PAD, .085
 
 
 def _frames():
@@ -205,17 +216,13 @@ def _frames():
         x = x * x * (3 - 2 * x)  # smoothstep
         out.append(tuple(a[i] + (b[i] - a[i]) * x for i in range(1, 5)) + (1.0,))
         t += FRAME_DT
-    look = len(out)
-    for f in range(1, DIVE_FRAMES + 1):  # camera dives into the pupil, easing in
-        x = f / DIVE_FRAMES
-        out.append(out[look - 1][:4] + (DIVE_ZOOM ** (x ** 1.7),))
     return out
 
 
-DIVE_FRAMES, DIVE_ZOOM = 14, 18
 FRAMES = _frames()
-DIVE = FRAME_T0 + (len(FRAMES) - DIVE_FRAMES) * FRAME_DT  # dive starts here
-EYE = FRAME_T0 + len(FRAMES) * FRAME_DT + .05             # painting rain starts here
+EYE = FRAME_T0 + len(FRAMES) * FRAME_DT  # the rain starts falling over the eye here
+CYCLE = 2 * LOOP                          # eye -> rain -> profile (two snake rounds) -> rain -> eye
+BACK = CYCLE - HOLD + 0.3                 # second round's game over: rain covers the profile again
 
 
 def _eye_frame(W, H, cw, ch, yaw, pitch, opening, pupil, zoom=1.0):
@@ -336,14 +343,14 @@ def _eye_frame(W, H, cw, ch, yaw, pitch, opening, pupil, zoom=1.0):
 
 
 def ascii_eye(W, H, cw=7, ch=11.5):
-    """Animated 3D ASCII eye: prints in, looks around, blinks, the pupil
-    dilates, then the view zooms into the pupil until it goes black.
+    """Animated 3D ASCII eye: prints in, looks around and blinks, then fades
+    as the rain falls over it. Replays every CYCLE.
 
     Returns (css, svg).
     """
     from xml.sax.saxutils import escape
     cols = int(W // cw)
-    css = [".eye text{font-family:" + MONO + ";font-size:11px;white-space:pre}.ef{display:none}.ef0{display:inline}"]
+    css = [".eye text{font-family:" + MONO + ";font-size:11px;white-space:pre}"]
     css += [f".s{k}{{fill:{c}}}" for k, c in enumerate(SCLERA)]
     css += [f".i{k}{{fill:{c}}}" for k, c in enumerate(IRIS)]
     frames = []
@@ -358,75 +365,74 @@ def ascii_eye(W, H, cw=7, ch=11.5):
             main = max(weight, key=weight.get)
             body = "".join(escape(t) if c == main else f'<tspan class="{c}">{escape(t)}</tspan>'
                            for c, t in runs if t)
-            reveal = (f' class="{main} er" style="animation-delay:{j * .008:.3f}s"' if f == 0
-                      else f' class="{main}"')
+            reveal = f' class="{main} er{j}"' if f == 0 else f' class="{main}"'
             out.append(f'<text{reveal} x="0" y="{j * ch + ch * .8:.1f}" textLength="{cols * cw}" '
                        f'lengthAdjust="spacing">{body}</text>')
-        # Frames are switched by animating display, not visibility: hidden-but-
-        # displayed frames still cost nearly a full redraw every frame, while
-        # display:none ones cost nothing. (Browsers that can't animate display
-        # just keep frame 0, a still eye.)
+        # Frames are switched with SMIL display: CSS can't animate display
+        # inside an <img>, and hidden-but-displayed frames (opacity, visibility,
+        # moved offscreen) still cost nearly a full redraw every frame, while
+        # display:none ones cost nothing.
         start = 0 if f == 0 else FRAME_T0 + f * FRAME_DT
-        end = FRAME_T0 + (f + 1) * FRAME_DT if f < len(FRAMES) - 1 else EYE
-        a, b = start / EYE * 100, end / EYE * 100
-        css.append(f"@keyframes ef{f}{{0%{{display:{'inline' if f == 0 else 'none'}}}"
-                   f"{a:.2f}%{{display:inline}}{min(b, 100):.2f}%,100%{{display:none}}}}"
-                   f".ef{f}{{animation:ef{f} {EYE}s steps(1,end) both}}")
-        frames.append(f'<g class="ef ef{f}">{"".join(out)}</g>')
-    css.append(".er{opacity:0;animation:er .2s ease-out both}@keyframes er{to{opacity:1}}"
-               f".eye{{animation:eyeout .35s ease-in {EYE - .25:.2f}s both}}"
-               "@keyframes eyeout{to{opacity:0;visibility:hidden;display:none}}")
+        end = FRAME_T0 + (f + 1) * FRAME_DT if f < len(FRAMES) - 1 else EYE + 1.3
+        a, b = start / CYCLE, end / CYCLE
+        swap = (f'keyTimes="0;{b:.5f}" values="inline;none"' if f == 0
+                else f'keyTimes="0;{a:.5f};{b:.5f}" values="none;inline;none"')
+        frames.append(f'<g display="{"inline" if f == 0 else "none"}"><animate attributeName="display" '
+                      f'dur="{CYCLE}s" repeatCount="indefinite" calcMode="discrete" {swap}/>{"".join(out)}</g>')
+    def pc(t):
+        return f"{t / CYCLE * 100:.3f}%"
+    for j in range(len(rows)):  # rows print in top to bottom
+        d = j * .018
+        css.append(f"@keyframes er{j}{{0%,{pc(d)}{{opacity:0}}{pc(d + .2)},100%{{opacity:1}}}}"
+                   f".er{j}{{animation:er{j} {CYCLE}s ease-out infinite}}")
+    css.append(f"@keyframes eyeout{{0%,{pc(EYE + .3)}{{opacity:1}}{pc(EYE + 1.2)},100%{{opacity:0}}}}"
+               f".eye{{animation:eyeout {CYCLE}s ease-in infinite}}")
     return "".join(css), f'<g class="eye">{"".join(frames)}</g>'
 
 
-def matrix_rain(W, H, seed=7, cw=14, trail=18, start=0.0, deco=False):
-    """One-shot matrix rain intro. Each column is covered by a dark curtain
-    that retracts behind the falling drop, so the rain 'paints' the profile
-    into view. (Plain rects rather than masks: masks over the filtered
-    profile are too slow to redraw every frame.)
-
-    With deco=True it builds a free-running layer instead (no curtains,
-    columns already mid-fall) used to bridge the dive into the pupil.
+def matrix_rain(W, H, seed=7, cw=14, trail=18):
+    """Matrix rain that falls twice per CYCLE. Each column has a dark curtain
+    whose edge rides the falling drop: after the eye it retracts behind the
+    drop, painting the profile into view; at BACK it slides down in front of
+    it, wiping the profile away for the next eye. (Plain rects rather than
+    masks: masks over the profile are too slow to redraw every frame.)
 
     Returns (css, curtains, rain).
     """
-    m, k_ = ("n", "q") if deco else ("m", "k")
     rnd = random.Random(seed)
     css, curtain, rain = [], [], []
     L = trail * cw
+
+    def pc(t):
+        return f"{t / CYCLE * 100:.3f}%"
     for i in range(int(W // cw) + 1):
         x = i * cw
-        delay = start + rnd.uniform(0, 1.8)
-        fall = rnd.uniform(2.8, 4.2)       # time for the head to travel H + L
-        reach = fall * H / (H + L)         # time for the head to reach the bottom
-        if deco:
-            y0 = rnd.uniform(.1, .6) * (H + L)
-            css.append(f"@keyframes {m}r{i}{{0%{{transform:translateY({y0:.0f}px);opacity:0}}15%{{opacity:1}}"
-                       f"100%{{transform:translateY({H + L}px);opacity:1}}}}"
-                       f".{m}{i}{{animation:{m}r{i} {fall * (1 - y0 / (H + L)):.2f}s linear "
-                       f"{start + rnd.uniform(0, .45):.2f}s both}}")
-        else:
-            css.append(f".{m}{i}{{animation:rain {fall:.2f}s linear {delay:.2f}s both}}"
-                       f".{k_}{i}{{animation:paint {reach:.2f}s linear {delay:.2f}s both}}")
-            curtain.append(f'<rect class="{k_}{i}" x="{x}" y="0" width="{cw + .5}" height="{H}"/>')
+        d1, f1 = EYE + rnd.uniform(0, 1.8), rnd.uniform(2.8, 4.2)  # f: time for the head to travel H + L
+        d2, f2 = BACK + rnd.uniform(0, .7), rnd.uniform(1.8, 2.4)
+        r1, r2 = f1 * H / (H + L), f2 * H / (H + L)                # time for the head to reach the bottom
+        css.append(f"@keyframes m{i}{{0%,{pc(d1)}{{transform:translateY(0)}}{pc(d1 + f1)},{pc(d2 - .01)}"
+                   f"{{transform:translateY({H + L}px)}}{pc(d2)}{{transform:translateY(0)}}"
+                   f"{pc(d2 + f2)},100%{{transform:translateY({H + L}px)}}}}"
+                   f"@keyframes k{i}{{0%,{pc(d1)}{{transform:translateY(0)}}{pc(d1 + r1)},{pc(d2 - .01)}"
+                   f"{{transform:translateY({H}px)}}{pc(d2)}{{transform:translateY(-{H}px)}}"
+                   f"{pc(d2 + r2)},100%{{transform:translateY(0)}}}}"
+                   f".m{i}{{animation:m{i} {CYCLE}s linear infinite}}.k{i}{{animation:k{i} {CYCLE}s linear infinite}}")
+        curtain.append(f'<rect class="k{i}" x="{x}" y="0" width="{cw + .5}" height="{H}"/>')
         chars = "".join(
             f'<tspan x="{x + cw / 2}" y="{-L + (k + 1) * cw}" fill-opacity="{(k + 1) / trail:.2f}"'
             f'{f" fill={chr(34)}#ffd6d6{chr(34)}" if k == trail - 1 else ""}>{rnd.choice(GLYPHS)}</tspan>'
             for k in range(trail))
-        rain.append(f'<text class="{m}{i}" text-anchor="middle">{chars}</text>')
-    css.append(f"@keyframes rain{{from{{transform:translateY(0)}}to{{transform:translateY({H + L}px)}}}}"
-               "@keyframes paint{from{transform:scaleY(1)}to{transform:scaleY(0)}}"
-               ".curtain rect{transform-box:fill-box;transform-origin:bottom}")
+        rain.append(f'<text class="m{i}" text-anchor="middle">{chars}</text>')
     return "".join(css), "".join(curtain), "".join(rain)
 
 
 def morph(snake_svg):
     """Header, snake and stack as three windows that merge into one terminal
-    and split apart again every round (in step with the red/green swap)."""
+    and split apart again every round, framed by the eye + rain loop."""
     gap = 10
     parts, y, seams = [], 0, []
     # (the typing waits for the rain to finish painting)
-    for i, svg in enumerate([header("h", EYE + 5.2), snake_svg, stack("s", EYE + 5.5)]):
+    for i, svg in enumerate([header("h", EYE + 5.2, CYCLE), snake_svg, stack("s", EYE + 5.5, CYCLE)]):
         nested, h = _nest(svg, y)
         parts.append(nested)
         if i:
@@ -439,18 +445,15 @@ def morph(snake_svg):
         f'<rect x="0" y="{sy - gap - 12}" width="{W}" height="{gap + 12 + 26}" fill="{BG}"/>'
         f'<line x1="20" x2="{W - 20}" y1="{sy - gap / 2 + 6}" y2="{sy - gap / 2 + 6}" stroke="{DIM}" '
         f'stroke-opacity=".45" stroke-dasharray="2 5"/>' for sy in seams)
-    css, curtain, rain = matrix_rain(W, H, start=EYE)
+    css, curtain, rain = matrix_rain(W, H)
     eye_css, eye = ascii_eye(W, H)
-    # bridging rain: appears in the dark as the camera reaches the pupil
-    deco_css, _, deco = matrix_rain(W, H, seed=11, start=EYE - .45, deco=True)
-    eye_css += deco_css
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
 <title>{USER} — terminal profile</title>
 <style>{css}{eye_css}.rain text{{font-family:{MONO};font-size:13px}}</style>
 <defs><clipPath id="card"><rect width="{W}" height="{H}" rx="12"/></clipPath></defs>
 {''.join(parts)}
 <g opacity="0">{round_swap("opacity", "0", "1")}{fill}</g>
-<g clip-path="url(#card)"><g class="curtain" fill="{BG}">{curtain}</g>{eye}<g class="rain pupilrain" fill="{HI}">{deco}</g><g class="rain" fill="{HI}">{rain}</g></g>
+<g clip-path="url(#card)"><g class="curtain" fill="{BG}">{curtain}</g>{eye}<g class="rain" fill="{HI}">{rain}</g></g>
 </svg>"""
 
 
@@ -472,7 +475,7 @@ def main():
         with open(sys.argv[2], encoding="utf-8") as f:
             svg = (combined if sys.argv[1] == "combined" else morph)(f.read())
         with open(sys.argv[3], "w", encoding="utf-8") as f:
-            f.write(palette_vars(svg))
+            f.write(svg)
         print("wrote " + sys.argv[3])
         return
     os.makedirs(OUT, exist_ok=True)
@@ -481,7 +484,7 @@ def main():
         files[f"btn-{name}.svg"] = button(name, label)
     for fn, content in files.items():
         with open(os.path.join(OUT, fn), "w", encoding="utf-8") as f:
-            f.write(palette_vars(content))
+            f.write(content)
         print("wrote assets/" + fn)
 
 
